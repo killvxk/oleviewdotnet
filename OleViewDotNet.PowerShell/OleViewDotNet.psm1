@@ -1097,6 +1097,8 @@ This cmdlet gets COM interfaces from the database based on a set of criteria. Th
 The database to use. If not specified then the current database is used.
 .PARAMETER Iid
 Specify a IID to lookup.
+.PARAMETER AllowNoReg
+Creates an interface entry even if not registered.
 .PARAMETER Name
 Specify a name to match against the interface name.
 .PARAMETER Object
@@ -1132,6 +1134,8 @@ function Get-ComInterface {
     Param(
         [Parameter(Position = 0, Mandatory, ParameterSetName = "FromIid", ValueFromPipelineByPropertyName)]
         [Guid]$Iid,
+        [Parameter(ParameterSetName = "FromIid")]
+        [switch]$AllowNoReg,
         [Parameter(Mandatory, ParameterSetName = "FromPartialIid")]
         [string]$PartialIid,
         [Parameter(Mandatory, ParameterSetName = "FromName")]
@@ -1162,7 +1166,11 @@ function Get-ComInterface {
             Get-ComInterface -Database $Database | Where-Object Iid -Match $PartialIid | Write-Output
         }
         "FromIid" {
-            $Database.Interfaces[$Iid] | Write-Output
+            if ($AllowNoReg) {
+                $Database.MapIidToInterface($Iid) | Write-Output
+            } else {
+                $Database.Interfaces[$Iid] | Write-Output
+            }
         }
         "FromObject" {
             $Database.GetInterfacesForObject($Object) | Write-Output
@@ -1544,15 +1552,15 @@ Create the object from an existing IPID.
 function New-ComObject {
     [CmdletBinding(DefaultParameterSetName="FromClass")]
     Param(
-        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromClass")]
+        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromClass", ValueFromPipeline)]
         [Parameter(Mandatory, Position = 0, ParameterSetName = "FromSessionIdClass")]
         [OleViewDotNet.Database.ICOMClassEntry]$Class,
-        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromFactory")]
+        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromFactory", ValueFromPipeline)]
         [OleViewDotNet.Wrappers.IClassFactoryWrapper]$Factory,
         [Parameter(Mandatory, Position = 0, ParameterSetName = "FromActivationFactory")]
         [OleViewDotNet.Wrappers.IActivationFactoryWrapper]$ActivationFactory,
-        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromClsid")]
-        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromSessionIdClsid")]
+        [Parameter(Mandatory, ParameterSetName = "FromClsid")]
+        [Parameter(Mandatory, ParameterSetName = "FromSessionIdClsid")]
         [Guid]$Clsid,
         [Parameter(ParameterSetName = "FromClsid")]
         [Parameter(ParameterSetName = "FromClass")]
@@ -1575,6 +1583,12 @@ function New-ComObject {
 
     PROCESS {
         $obj = $null
+        $iid_set = $true
+        if ($Iid -eq [guid]::Empty) {
+            $Iid = "00000000-0000-0000-C000-000000000046"
+            $iid_set = $false
+        }
+
         switch($PSCmdlet.ParameterSetName) {
             "FromClass" {
                 $obj = $Class.CreateInstanceAsObject($ClassContext, $RemoteServer)
@@ -1604,12 +1618,9 @@ function New-ComObject {
         }
 
         if ($null -ne $obj) {
-            if ($null -ne $Ipid -and $Iid -eq [guid]::Empty) {
+            if ($null -ne $Ipid -and !$iid_set) {
                 Wrap-ComObject $obj -Ipid $Ipid -NoWrapper:$NoWrapper | Write-Output
             } else {
-                if ($Iid -eq [guid]::Empty) {
-                    $Iid = "00000000-0000-0000-C000-000000000046"
-                }
                 Wrap-ComObject $obj -Iid $Iid -NoWrapper:$NoWrapper -LoadType:$LoadType -DataBase $DataBase | Write-Output
             }
         }
@@ -1637,7 +1648,7 @@ Don't wrap factory object in a callable wrapper.
 function New-ComObjectFactory {
     [CmdletBinding(DefaultParameterSetName="FromClass")]
     Param(
-        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromClass")]
+        [Parameter(Mandatory, Position = 0, ParameterSetName = "FromClass", ValueFromPipeline)]
         [Parameter(Mandatory, Position = 0, ParameterSetName = "FromSessionIdClass")]
         [OleViewDotNet.Database.ICOMClassEntry]$Class,
         [Parameter(Mandatory, Position = 0, ParameterSetName = "FromClsid")]
@@ -1978,6 +1989,10 @@ function Format-ComProxy {
         [OleViewDotNet.IProxyFormatter]$Proxy,
         [parameter(Mandatory, Position=0, ValueFromPipeline, ParameterSetName="FromProcess")]
         [OleViewDotNet.COMProcessEntry]$Process,
+        [parameter(Mandatory, Position=0, ValueFromPipeline, ParameterSetName="FromInterface")]
+        [OleViewDotNet.Database.COMInterfaceEntry]$Interface,
+        [parameter(Mandatory, Position=0, ValueFromPipeline, ParameterSetName = "FromInterfaceInstance")]
+        [OleViewDotNet.Database.COMInterfaceInstance]$InterfaceInstance,
         [OleViewDotNet.ProxyFormatterFlags]$Flags = 0
     )
 
@@ -1988,6 +2003,12 @@ function Format-ComProxy {
             }
             "FromProcess" {
                 $Process.Ipids | Format-ComProxy -Flags $Flags
+            }
+            "FromInterface" {
+                $Interface | Get-ComProxy | Format-ComProxy -Flags $Flags
+            }
+            "FromInterfaceInstance" {
+                $InterfaceInstance | Get-ComProxy | Format-ComProxy -Flags $Flags
             }
         }
     }
@@ -2932,4 +2953,40 @@ function Get-ComGuid {
             }
         }
     }
+}
+
+<#
+.SYNOPSIS
+Tests if an object supports an interface.
+.DESCRIPTION
+This cmdlet queries a COM object for a specified interface.
+.PARAMETER Iid
+The IID of the interface.
+.PARAMETER Interface
+A COM interface entry.
+.PARAMETER Object
+The object to query.
+.INPUTS
+None
+.OUTPUTS
+Boolean
+#>
+function Test-ComInterface {
+    [CmdletBinding(DefaultParameterSetName="FromIid")]
+    Param(
+        [parameter(Mandatory, ParameterSetName = "FromIid", Position = 0)]
+        [Guid]$Iid,
+        [parameter(Mandatory, Position=1)]
+        [object]$Object,
+        [parameter(Mandatory, ParameterSetName = "FromIntf", Position = 0)]
+        [OleViewDotNet.Database.COMInterfaceEntry]$Interface
+    )
+
+    if($PSCmdlet.ParameterSetName -eq "FromIid") {
+        $Interface = Get-ComInterface -Iid $Iid -AllowNoReg
+    }
+
+    $Object = Unwrap-ComObject -Object $Object
+
+    return $Interface.TestInterface($Object)
 }

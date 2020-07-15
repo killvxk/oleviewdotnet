@@ -20,7 +20,7 @@
 RootModule = 'OleViewDotNet.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.10'
+ModuleVersion = '1.11'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -62,7 +62,8 @@ FunctionsToExport = 'Get-ComDatabase', 'Set-ComDatabase', 'Compare-ComDatabase',
                     'Get-ComObjectIpid', 'Set-ComSymbolResolver', 'Get-CurrentComDatabase', 'Set-CurrentComDatabase', 'Get-ComRegisteredClass', 'Format-ComProxy',
                     'Get-ComTypeLib', 'Get-ComTypeLibAssembly', 'Format-ComTypeLib', 'Format-ComGuid', 'Set-ComSymbolCache', 'New-ComStorageObject', 'Get-ComStorageObject',
                     'Get-ComRuntimeInterface', 'Get-ComRuntimeServer', 'Format-ComProcessClient', 'Get-ComCategory', 'Select-ComClassInterface', 'Get-ComRuntimeExtension',
-                    'Start-ComRuntimeExtension', 'Get-ComMimeType', 'Get-ComProgId', 'Get-ComObjectInterface', 'ConvertTo-ComAssembly', 'Get-ComGuid'
+                    'Start-ComRuntimeExtension', 'Get-ComMimeType', 'Get-ComProgId', 'Get-ComObjectInterface', 'ConvertTo-ComAssembly', 'Get-ComGuid',
+                    'Test-ComInterface'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
@@ -88,9 +89,12 @@ PrivateData = @{
         ProjectUri = 'https://github.com/tyranid/oleviewdotnet'
 
         # ReleaseNotes of this module
-        ReleaseNotes = 'v1.10
+        ReleaseNotes = 'v1.11
 ----
-* Updated NtApiDotNet to v1.1.27.
+* Updated NtApiDotNet to v1.1.28.
+* Fixed OXIDEntry parsing for Windows 10 2004.
+* Added Test-ComInterface.
+* Added partial matching for CLSID/IID.
 '
 
     } # End of PSData hashtable

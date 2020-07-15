@@ -731,8 +731,8 @@ namespace OleViewDotNet.Database
         public COMCLSIDEntry(COMRegistry registry, Guid clsid, COMServerType type)
             : this(registry, clsid)
         {
+            Name = clsid.ToString();
         }
-
 
         internal COMCLSIDEntry(COMRegistry registry)
         {
@@ -893,6 +893,11 @@ namespace OleViewDotNet.Database
         {
             get; private set;
         }
+
+        /// <summary>
+        /// True if this class has the trusted marshaller category.
+        /// </summary>
+        public bool TrustedMarshallerCategory => Categories.Contains(COMCategory.CATID_TrustedMarshaler);
 
         /// <summary>
         /// True if this class is marked as safe to script.
